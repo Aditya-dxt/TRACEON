@@ -93,6 +93,7 @@ async def list_assets(
         .where(Decision.asset_id == Asset.asset_id)
         .order_by(Decision.decided_at.desc())
         .limit(1)
+        .correlate(Asset)
         .scalar_subquery()
     )
     query = select(Asset)
@@ -147,6 +148,34 @@ async def get_asset(asset_id: str, session: Session = Depends(get_session)) -> d
         "attestation_id": attestation.attestation_id if attestation else None,
         "created_at": asset.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+
+
+@app.get("/v1/findings")
+async def list_findings(
+    asset_id: str | None = None,
+    severity: str | None = Query(default=None, pattern="^(informational|low|medium|high|critical)$"),
+    session: Session = Depends(get_session),
+) -> list[dict]:
+    query = select(FindingRecord)
+    if asset_id:
+        query = query.join(Scan, Scan.scan_id == FindingRecord.scan_id).where(Scan.asset_id == asset_id)
+    if severity:
+        query = query.where(FindingRecord.severity == severity)
+    findings = session.scalars(query.order_by(FindingRecord.scan_id, FindingRecord.finding_id)).all()
+    return [
+        {
+            "finding_id": item.finding_id,
+            "check": item.check,
+            "category": item.category,
+            "severity": item.severity,
+            "confidence": item.confidence,
+            "deterministic": item.deterministic,
+            "title": item.title,
+            "evidence": item.evidence,
+            "recommendation": item.recommendation,
+        }
+        for item in findings
+    ]
 
 
 @app.post("/v1/assets/import", status_code=201, response_model=AssetImportResponse)

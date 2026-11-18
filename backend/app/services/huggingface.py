@@ -2,8 +2,10 @@
 
 import hashlib
 import os
+import shutil
 import uuid
 from pathlib import Path, PurePosixPath
+from urllib.parse import quote
 
 from fastapi import HTTPException
 MAX_IMPORT_BYTES = int(os.getenv("TRACEON_MAX_IMPORT_BYTES", str(512 * 1024 * 1024)))
@@ -52,11 +54,11 @@ def import_model_file(repo_id: str, revision: str, file_path: str) -> tuple[str,
 
         blob = storage.Client().bucket(QUARANTINE_BUCKET).blob(object_name)
         blob.upload_from_filename(str(local_file), if_generation_match=0)
-        storage_path = f"gs://{QUARANTINE_BUCKET}/{object_name}#{blob.generation}"
+        storage_path = f"gs://{QUARANTINE_BUCKET}/{quote(object_name, safe='/')}?generation={blob.generation}"
     else:
         LOCAL_QUARANTINE_DIR.mkdir(parents=True, exist_ok=True)
         target = LOCAL_QUARANTINE_DIR / object_name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(local_file.read_bytes())
+        shutil.copyfile(local_file, target)
         storage_path = str(target)
     return asset_id, commit, sibling.size, digest.hexdigest(), storage_path

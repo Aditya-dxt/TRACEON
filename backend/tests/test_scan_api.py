@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
 from app.db.models import Asset, Decision, FindingRecord, Scan
-from app.main import app, create_scan, get_asset, get_scan, list_assets
+from app.main import app, create_scan, get_asset, get_scan, list_assets, list_findings
 from app.models import StartScanRequest
 from app.services import scan_runner
 
@@ -193,11 +193,44 @@ def test_asset_list_and_detail_never_expose_storage_path(test_database):
             decision_id="d_asset1", asset_id="a_asset1", scan_id="sc_asset1", verdict="APPROVE",
             reasons=["clean"], policy_id="default", policy_version=1,
         ))
+        session.add(FindingRecord(
+            scan_id="sc_asset1", finding_id="f_asset1", check="pickle_opcode",
+            category="serialization", severity="low", confidence="high", deterministic=True,
+            title="test finding", evidence={}, recommendation="review",
+        ))
         session.commit()
         items = complete_sync_coroutine(list_assets(limit=50, offset=0, verdict=None, session=session))
+        filtered = complete_sync_coroutine(list_assets(limit=50, offset=0, verdict="APPROVE", session=session))
         detail = complete_sync_coroutine(get_asset("a_asset1", session))
+        findings = complete_sync_coroutine(list_findings(asset_id="a_asset1", severity="low", session=session))
     assert items[0]["latest_verdict"] == "APPROVE"
+    assert len(filtered) == 1
+    assert len(findings) == 1 and findings[0]["finding_id"] == "f_asset1"
     assert "storage_path" not in items[0]
     assert detail["verdict"]["verdict"] == "APPROVE"
     assert detail["findings_summary"]["critical"] == 0
     assert "storage_path" not in detail
+
+
+def test_runner_rejects_scanner_digest_mismatch(test_database, tmp_path, monkeypatch):
+    artifact = tmp_path / "model.bin"
+    artifact.write_bytes(b"actual artifact")
+    with test_database() as session:
+        session.add(Asset(
+            asset_id="a_mismatch", name=artifact.name, source="test", file_format="bin",
+            size_bytes=artifact.stat().st_size, sha256="a" * 64, storage_path=str(artifact),
+        ))
+        session.add(Scan(scan_id="sc_mismatch", asset_id="a_mismatch", status="queued"))
+        session.commit()
+
+    monkeypatch.setattr(scan_runner, "scan_artifact", lambda path: {
+        "scan_id": "sc_runner", "engine_version": "test", "artifact": {
+            "name": "model.bin", "size_bytes": 15, "sha256": "b" * 64, "detected_format": "unknown",
+        }, "checks_run": [], "findings": [],
+        "started_at": "2026-11-19T10:00:00Z", "completed_at": "2026-11-19T10:00:01Z",
+    })
+    scan_runner.run_scan("sc_mismatch")
+    with test_database() as session:
+        stored = session.get(Scan, "sc_mismatch")
+        assert stored.status == "failed"
+        assert stored.result_json is None

@@ -42,6 +42,12 @@ def test_policy_uses_documented_deterministic_precedence():
     assert verdict.policy_version == 1
 
 
+def test_policy_does_not_approve_incomplete_checks():
+    asset = Asset(asset_id="a2", name="m", source="test", file_format="bin", size_bytes=1, sha256="a" * 64)
+    scan = Scan(scan_id="sc2", asset_id="a2", result_json={"findings": [], "checks_run": [{"name": "weight_check", "status": "skipped"}]})
+    assert evaluate_scan(asset, scan).verdict.value == "CONDITIONAL"
+
+
 def test_audit_chain_detects_payload_tampering(test_database):
     with test_database() as session:
         append_audit_event(session, event_type="asset.imported", entity_type="asset", entity_id="a1", payload={"sha256": "a" * 64})
@@ -92,7 +98,7 @@ def test_remote_sandbox_uses_fixed_bucket_and_object_generation(monkeypatch):
         @staticmethod
         def post(url, json, timeout):
             assert url == "https://worker.example/scan"
-            assert json == {"object_name": "a_1/model.safetensors", "generation": 42}
+            assert json == {"object_name": "a_1/model#v2.safetensors", "generation": 42}
             assert timeout == (10, 210)
             return FakeResponse()
 
@@ -100,7 +106,7 @@ def test_remote_sandbox_uses_fixed_bucket_and_object_generation(monkeypatch):
     monkeypatch.setenv("TRACEON_QUARANTINE_BUCKET", "private-bucket")
     monkeypatch.setattr(google.oauth2.id_token, "fetch_id_token_credentials", lambda audience, request: "id-token-credentials")
     monkeypatch.setattr(google.auth.transport.requests, "AuthorizedSession", FakeSession)
-    assert scan_runner._run_remote_sandbox("gs://private-bucket/a_1/model.safetensors#42") == {"scan_id": "sc_1"}
+    assert scan_runner._run_remote_sandbox("gs://private-bucket/a_1/model%23v2.safetensors?generation=42") == {"scan_id": "sc_1"}
 
 
 def test_dsse_pae_and_rsa_pss_signature_verification():

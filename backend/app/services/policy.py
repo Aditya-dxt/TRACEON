@@ -36,12 +36,16 @@ def evaluate_scan(asset: Asset, scan: Scan) -> Verdict:
 
     failed = [check for check in result.get("checks_run", []) if check.get("status") == "fail"]
     errored = [check for check in result.get("checks_run", []) if check.get("status") == "error"]
+    incomplete = [check for check in result.get("checks_run", []) if check.get("status") in {"warn", "skipped"}]
     if failed and verdict != VerdictKind.BLOCK:
         verdict = VerdictKind.QUARANTINE
         reasons.extend(f"Required check failed: {check.get('name', 'unknown')}" for check in failed)
     if errored and verdict not in {VerdictKind.BLOCK, VerdictKind.QUARANTINE}:
         verdict = VerdictKind.QUARANTINE
         reasons.extend(f"Check errored: {check.get('name', 'unknown')}" for check in errored)
+    if incomplete and verdict == VerdictKind.APPROVE:
+        verdict = VerdictKind.CONDITIONAL
+        reasons.extend(f"Check incomplete: {check.get('name', 'unknown')}" for check in incomplete)
     if not reasons:
         reasons.append("All checks passed with no findings above informational")
 

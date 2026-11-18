@@ -5,7 +5,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -51,7 +51,8 @@ def _run_remote_sandbox(storage_path: str) -> dict:
     expected_bucket = os.getenv("TRACEON_QUARANTINE_BUCKET", "")
     if parsed.scheme != "gs" or not expected_bucket or parsed.netloc != expected_bucket:
         raise RuntimeError("Asset does not reference the configured quarantine bucket")
-    generation = int(parsed.fragment) if parsed.fragment else None
+    generation_value = parse_qs(parsed.query).get("generation", [None])[0]
+    generation = int(generation_value) if generation_value else None
     object_name = unquote(parsed.path.lstrip("/"))
     credentials = id_token.fetch_id_token_credentials(worker_url, request=Request())
     response = AuthorizedSession(credentials).post(
@@ -110,6 +111,20 @@ def run_scan(scan_id: str) -> None:
             scan.status = "failed"
             scan.completed_at = utc_now()
             session.commit()
+            return
+        scanned_digest = validated.artifact.sha256.lower()
+        if scanned_digest != asset.sha256.lower():
+            scan.status = "failed"
+            scan.completed_at = utc_now()
+            append_audit_event(
+                session,
+                event_type="scan.artifact_digest_mismatch",
+                entity_type="scan",
+                entity_id=scan.scan_id,
+                payload={"asset_id": asset.asset_id, "expected_sha256": asset.sha256, "scanned_sha256": scanned_digest},
+            )
+            session.commit()
+            logger.error("Scanner digest mismatch for scan %s", scan_id)
             return
         scan.scanner_scan_id = validated.scan_id
         scan.engine_version = validated.engine_version
