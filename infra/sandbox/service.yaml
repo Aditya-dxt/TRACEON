@@ -1,0 +1,34 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: traceon-sandbox
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      serviceAccountName: traceon-sandbox@PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 1
+      timeoutSeconds: 240
+      containers:
+        - name: traceon-sandbox
+          image: REGION-docker.pkg.dev/PROJECT_ID/traceon/traceon-sandbox:latest
+          sandboxLauncher: true
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TRACEON_MAX_ARTIFACT_BYTES
+              value: "536870912"
+            - name: TRACEON_SANDBOX_TIMEOUT_SECONDS
+              value: "195"
+            - name: TRACEON_QUARANTINE_BUCKET
+              value: QUARANTINE_BUCKET_NAME
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
