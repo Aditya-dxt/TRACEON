@@ -13,12 +13,15 @@ from .config import cors_origins
 from .db.models import Asset, Scan, utc_now
 from .db.session import get_session
 from .models import (
+    AssetImportResponse,
     ErrorResponse,
     HealthResponse,
+    ImportAssetRequest,
     ScanAcceptedResponse,
     StartScanRequest,
 )
 from .services.scan_runner import new_scan_id, run_scan
+from .services.huggingface import import_model_file
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +77,51 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
 @app.get("/v1/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@app.post("/v1/assets/import", status_code=201, response_model=AssetImportResponse)
+def import_asset(
+    request: ImportAssetRequest,
+    session: Session = Depends(get_session),
+) -> AssetImportResponse:
+    name = request.file_path.rsplit("/", 1)[-1]
+    asset_id, commit, size, digest, storage_path = import_model_file(
+        request.repo_id, request.revision, request.file_path
+    )
+    file_format = name.rsplit(".", 1)[-1].lower() if "." in name else "unknown"
+    asset = Asset(
+        asset_id=asset_id,
+        name=name,
+        source=f"huggingface:{request.repo_id}@{commit}",
+        file_format=file_format,
+        size_bytes=size,
+        sha256=digest,
+        storage_path=storage_path,
+        status="quarantined",
+    )
+    session.add(asset)
+    session.flush()
+    from .services.audit import append_audit_event
+
+    append_audit_event(
+        session,
+        event_type="asset.imported",
+        entity_type="asset",
+        entity_id=asset_id,
+        payload={"source": asset.source, "sha256": digest, "size_bytes": size},
+    )
+    session.commit()
+    session.refresh(asset)
+    return AssetImportResponse(
+        asset_id=asset.asset_id,
+        name=asset.name,
+        source=asset.source,
+        format=asset.file_format,
+        size_bytes=asset.size_bytes,
+        sha256=asset.sha256,
+        status=asset.status,
+        created_at=asset.created_at,
+    )
 
 
 @app.post("/v1/scans", status_code=202, response_model=ScanAcceptedResponse)

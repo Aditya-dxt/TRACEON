@@ -87,6 +87,24 @@ class StartScanRequest(BaseModel):
     asset_id: str
 
 
+class ImportAssetRequest(BaseModel):
+    source: Literal["huggingface"]
+    repo_id: str = Field(min_length=3, max_length=256, pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    revision: str = Field(default="main", min_length=1, max_length=128)
+    file_path: str = Field(min_length=1, max_length=1024)
+
+
+class AssetImportResponse(BaseModel):
+    asset_id: str
+    name: str
+    source: str
+    format: str
+    size_bytes: int
+    sha256: str
+    status: str
+    created_at: UtcTimestamp
+
+
 class ScanAcceptedResponse(BaseModel):
     scan_id: str
     asset_id: str

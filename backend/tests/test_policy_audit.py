@@ -6,6 +6,8 @@ from app.db.base import Base
 from app.db.models import Asset, AuditLogEntry, Scan
 from app.services.audit import append_audit_event, verify_audit_chain
 from app.services.policy import evaluate_scan
+from app.main import import_asset
+from app.models import ImportAssetRequest
 
 
 @pytest.fixture
@@ -47,3 +49,22 @@ def test_audit_chain_detects_payload_tampering(test_database):
         entries[0].payload = {"sha256": "b" * 64}
         session.commit()
         assert not verify_audit_chain(session)
+
+
+def test_asset_import_persists_pinned_huggingface_source_and_audit(test_database, monkeypatch):
+    import app.main as main_module
+
+    monkeypatch.setattr(
+        main_module,
+        "import_model_file",
+        lambda repo, revision, path: ("a_imported", "abc123", 7, "a" * 64, "/tmp/a_imported/model.bin"),
+    )
+    with test_database() as session:
+        response = import_asset(
+            ImportAssetRequest(source="huggingface", repo_id="org/model", file_path="weights/model.bin"),
+            session,
+        )
+        assert response.source == "huggingface:org/model@abc123"
+        assert response.format == "bin"
+        assert session.get(Asset, "a_imported").status == "quarantined"
+        assert verify_audit_chain(session)
