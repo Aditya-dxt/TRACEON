@@ -7,6 +7,9 @@ from app.db.models import Asset, AuditLogEntry, Scan
 from app.services.audit import append_audit_event, verify_audit_chain
 from app.services.policy import evaluate_scan
 from app.services import scan_runner
+from app.services.attestation import PAYLOAD_TYPE, canonical_json, dsse_pae, verify_signature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from app.main import import_asset
 from app.models import ImportAssetRequest
 
@@ -98,3 +101,16 @@ def test_remote_sandbox_uses_fixed_bucket_and_object_generation(monkeypatch):
     monkeypatch.setattr(google.oauth2.id_token, "fetch_id_token_credentials", lambda audience, request: "id-token-credentials")
     monkeypatch.setattr(google.auth.transport.requests, "AuthorizedSession", FakeSession)
     assert scan_runner._run_remote_sandbox("gs://private-bucket/a_1/model.safetensors#42") == {"scan_id": "sc_1"}
+
+
+def test_dsse_pae_and_rsa_pss_signature_verification():
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    payload = canonical_json({"_type": "https://in-toto.io/Statement/v1", "subject": []})
+    pae = dsse_pae(PAYLOAD_TYPE, payload)
+    digest = __import__("hashlib").sha256(pae).digest()
+    signature = private_key.sign(
+        digest,
+        padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=hashes.SHA256().digest_size),
+        hashes.SHA256(),
+    )
+    verify_signature(private_key.public_key(), "RSA_SIGN_PSS_2048_SHA256", signature, digest)

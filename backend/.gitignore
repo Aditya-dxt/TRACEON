@@ -1,3 +1,4 @@
 # Local development database
 /traceon.db
 /traceon.db-*
+/data/quarantine/

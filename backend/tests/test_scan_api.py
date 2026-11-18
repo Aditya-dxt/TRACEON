@@ -10,8 +10,8 @@ from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.db.models import Asset, FindingRecord, Scan
-from app.main import app, create_scan, get_scan
+from app.db.models import Asset, Decision, FindingRecord, Scan
+from app.main import app, create_scan, get_asset, get_scan, list_assets
 from app.models import StartScanRequest
 from app.services import scan_runner
 
@@ -179,3 +179,25 @@ def test_scan_routes_are_registered():
     routes = {(route.path, method) for route in app.routes for method in route.methods or []}
     assert ("/v1/scans", "POST") in routes
     assert ("/v1/scans/{scan_id}", "GET") in routes
+
+
+def test_asset_list_and_detail_never_expose_storage_path(test_database):
+    with test_database() as session:
+        session.add(Asset(
+            asset_id="a_asset1", name="model.bin", source="test", file_format="bin",
+            size_bytes=10, sha256="b" * 64, storage_path="C:/private/file.bin",
+        ))
+        session.add(Scan(scan_id="sc_asset1", asset_id="a_asset1", status="completed", result_json={}))
+        session.flush()
+        session.add(Decision(
+            decision_id="d_asset1", asset_id="a_asset1", scan_id="sc_asset1", verdict="APPROVE",
+            reasons=["clean"], policy_id="default", policy_version=1,
+        ))
+        session.commit()
+        items = complete_sync_coroutine(list_assets(limit=50, offset=0, verdict=None, session=session))
+        detail = complete_sync_coroutine(get_asset("a_asset1", session))
+    assert items[0]["latest_verdict"] == "APPROVE"
+    assert "storage_path" not in items[0]
+    assert detail["verdict"]["verdict"] == "APPROVE"
+    assert detail["findings_summary"]["critical"] == 0
+    assert "storage_path" not in detail

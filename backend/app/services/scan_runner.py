@@ -13,10 +13,11 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from scanner import scan_artifact  # noqa: E402
 
-from ..db.models import Asset, Decision, FindingRecord, Scan, utc_now
+from ..db.models import Asset, AttestationRecord, Decision, FindingRecord, Scan, utc_now
 from ..db.session import SessionLocal
 from ..models import ScanResult
 from .audit import append_audit_event
+from .attestation import build_bom, build_statement, sign_dsse
 from .policy import evaluate_scan
 
 logger = logging.getLogger(__name__)
@@ -133,8 +134,7 @@ def run_scan(scan_id: str) -> None:
             for finding in validated.findings
         )
         verdict = evaluate_scan(asset, scan)
-        session.add(
-            Decision(
+        decision = Decision(
                 decision_id=verdict.decision_id,
                 asset_id=asset.asset_id,
                 scan_id=scan.scan_id,
@@ -144,7 +144,8 @@ def run_scan(scan_id: str) -> None:
                 policy_version=verdict.policy_version,
                 decided_at=verdict.decided_at,
             )
-        )
+        session.add(decision)
+        session.flush()
         append_audit_event(
             session,
             event_type="scan.completed",
@@ -157,4 +158,34 @@ def run_scan(scan_id: str) -> None:
                 "verdict": verdict.verdict.value,
             },
         )
+        if decision.verdict in {"APPROVE", "CONDITIONAL"}:
+            try:
+                bom = build_bom(asset, scan)
+                envelope = sign_dsse(build_statement(asset, scan, decision, bom))
+                envelope["bom"] = bom
+                attestation_id = f"att_{uuid.uuid4().hex[:16]}"
+                session.add(
+                    AttestationRecord(
+                        attestation_id=attestation_id,
+                        asset_id=asset.asset_id,
+                        scan_id=scan.scan_id,
+                        document=envelope,
+                    )
+                )
+                append_audit_event(
+                    session,
+                    event_type="attestation.signed",
+                    entity_type="attestation",
+                    entity_id=attestation_id,
+                    payload={"asset_id": asset.asset_id, "scan_id": scan.scan_id, "keyid": envelope["signatures"][0]["keyid"]},
+                )
+            except Exception:
+                logger.exception("Could not sign eligible attestation for scan %s", scan_id)
+                append_audit_event(
+                    session,
+                    event_type="attestation.signing_failed",
+                    entity_type="scan",
+                    entity_id=scan.scan_id,
+                    payload={"asset_id": asset.asset_id, "reason": "signing unavailable"},
+                )
         session.commit()

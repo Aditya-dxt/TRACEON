@@ -34,6 +34,16 @@ alembic -c backend/alembic.ini revision --autogenerate -m "describe the schema c
 
 Review generated migrations before applying them. SQLite is intended for local development; PostgreSQL uses the same SQLAlchemy models.
 
+## Seed a harmless local asset
+
+After applying migrations, add the clean scanner corpus sample to the local database. The command is idempotent and does not overwrite an existing row:
+
+```powershell
+python backend/seed.py
+```
+
+Then queue it with `POST /v1/scans` using `{"asset_id":"a_seed_clean"}`.
+
 ## Health endpoint
 
 ```powershell
@@ -53,3 +63,11 @@ Expected response:
 ## Hugging Face quarantine import
 
 `POST /v1/assets/import` accepts a Hugging Face model repository, revision, and repository-relative file path. The backend resolves the requested branch or tag to a commit SHA, enforces `TRACEON_MAX_IMPORT_BYTES` (default 512 MiB), hashes the downloaded bytes, and records the immutable source revision. Set `HF_TOKEN` only in the runtime secret manager when private repositories are needed. If `TRACEON_QUARANTINE_BUCKET` is configured, imported bytes go to that private bucket; otherwise local development stores them under `backend/data/quarantine`. The public API never returns the private storage location.
+
+## AI-BOM, attestations, and verification
+
+Completed `APPROVE` and `CONDITIONAL` scans are eligible for an in-toto DSSE attestation. The backend generates a CycloneDX 1.7 AI-BOM with the scanner's public generator, hashes canonical JSON, and asks Cloud KMS to sign the DSSE pre-authentication encoding. Set `TRACEON_KMS_KEY_VERSION` from the Terraform `signing_key_version_name` output and grant the API service identity access to that key. The document keeps the base64 DSSE payload and decoded statement together for inspection. `GET /v1/attestations/{id}`, `GET /v1/assets/{id}/bom`, and `POST /v1/verify` expose the contract routes. The CLI checks a registered SHA-256 through the API:
+
+```powershell
+python backend/verify_cli.py <sha256> --api-url https://<traceon-api-url>
+```

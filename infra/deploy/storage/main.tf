@@ -26,6 +26,12 @@ resource "google_project_service" "iam" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "kms" {
+  project            = var.project_id
+  service            = "cloudkms.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_service_account" "backend" {
   project      = var.project_id
   account_id   = "traceon-backend"
@@ -40,6 +46,34 @@ resource "google_service_account" "sandbox" {
   display_name = "Traceon isolated scanner host"
   description  = "Host identity for fetching quarantined inputs; sandbox child processes receive no credentials."
   depends_on   = [google_project_service.iam]
+}
+
+resource "google_kms_key_ring" "traceon" {
+  project    = var.project_id
+  name       = "traceon-signing"
+  location   = var.region
+  depends_on = [google_project_service.kms]
+}
+
+resource "google_kms_crypto_key" "signing" {
+  name            = "traceon-dsse"
+  key_ring        = google_kms_key_ring.traceon.id
+  purpose         = "ASYMMETRIC_SIGN"
+  deletion_policy = "PREVENT"
+
+  version_template {
+    algorithm        = "RSA_SIGN_PSS_2048_SHA256"
+    protection_level = "SOFTWARE"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_kms_crypto_key_version" "signing" {
+  crypto_key      = google_kms_crypto_key.signing.id
+  deletion_policy = "PREVENT"
 }
 
 resource "google_storage_bucket" "quarantine" {
@@ -112,4 +146,10 @@ resource "google_storage_bucket_iam_member" "backend_evidence_read" {
   bucket = google_storage_bucket.evidence.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.backend.email}"
+}
+
+resource "google_kms_crypto_key_iam_member" "backend_signer" {
+  crypto_key_id = google_kms_crypto_key.signing.id
+  role          = "roles/cloudkms.signerVerifier"
+  member        = "serviceAccount:${google_service_account.backend.email}"
 }

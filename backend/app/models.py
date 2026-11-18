@@ -105,6 +105,10 @@ class AssetImportResponse(BaseModel):
     created_at: UtcTimestamp
 
 
+class VerifyRequest(BaseModel):
+    sha256: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+
+
 class ScanAcceptedResponse(BaseModel):
     scan_id: str
     asset_id: str
