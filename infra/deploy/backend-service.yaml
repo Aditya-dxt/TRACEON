@@ -1,0 +1,38 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: traceon-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: traceon-backend@PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 20
+      timeoutSeconds: 300
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/traceon/backend:RELEASE
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            - name: TRACEON_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: traceon-database-url
+            - name: TRACEON_QUARANTINE_BUCKET
+              value: PROJECT_ID-traceon-quarantine
+            - name: TRACEON_KMS_KEY_VERSION
+              value: projects/PROJECT_ID/locations/REGION/keyRings/traceon-signing/cryptoKeys/traceon-dsse/cryptoKeyVersions/1
+            - name: TRACEON_SANDBOX_URL
+              value: SCANNER_WORKER_URL
+            - name: TRACEON_CORS_ORIGINS
+              value: FRONTEND_ORIGIN
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
