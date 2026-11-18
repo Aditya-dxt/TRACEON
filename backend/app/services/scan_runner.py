@@ -1,9 +1,11 @@
 """In-process bridge from stored assets to the Traceon scanner package."""
 
 import logging
+import os
 import sys
 import uuid
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -35,6 +37,35 @@ def _mark_failed(scan_id: str) -> None:
             session.commit()
 
 
+def _run_remote_sandbox(storage_path: str) -> dict:
+    """Ask the authenticated internal Cloud Run worker to scan one GCS object."""
+
+    from google.auth.transport.requests import AuthorizedSession, Request
+    from google.oauth2 import id_token
+
+    worker_url = os.getenv("TRACEON_SANDBOX_URL", "").rstrip("/")
+    if not worker_url:
+        raise RuntimeError("TRACEON_SANDBOX_URL is not configured")
+    parsed = urlsplit(storage_path)
+    expected_bucket = os.getenv("TRACEON_QUARANTINE_BUCKET", "")
+    if parsed.scheme != "gs" or not expected_bucket or parsed.netloc != expected_bucket:
+        raise RuntimeError("Asset does not reference the configured quarantine bucket")
+    generation = int(parsed.fragment) if parsed.fragment else None
+    object_name = unquote(parsed.path.lstrip("/"))
+    credentials = id_token.fetch_id_token_credentials(worker_url, request=Request())
+    response = AuthorizedSession(credentials).post(
+        f"{worker_url}/scan",
+        json={"object_name": object_name, "generation": generation},
+        timeout=(10, 210),
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Isolated scanner returned HTTP {response.status_code}")
+    result = response.json()
+    if not isinstance(result, dict):
+        raise RuntimeError("Isolated scanner returned an invalid result")
+    return result
+
+
 def run_scan(scan_id: str) -> None:
     """Run one stored asset through scanner.scan_artifact and persist its report."""
 
@@ -43,8 +74,9 @@ def run_scan(scan_id: str) -> None:
         if scan is None or scan.status != "queued":
             return
         asset = session.get(Asset, scan.asset_id)
-        storage_path = Path(asset.storage_path) if asset and asset.storage_path else None
-        if storage_path is None or not storage_path.is_file():
+        stored_path = asset.storage_path if asset else None
+        local_path = Path(stored_path) if stored_path and not stored_path.startswith("gs://") else None
+        if not stored_path or (local_path is not None and not local_path.is_file()):
             scan.status = "failed"
             scan.started_at = utc_now()
             scan.completed_at = utc_now()
@@ -56,9 +88,12 @@ def run_scan(scan_id: str) -> None:
         session.commit()
 
     try:
-        if not storage_path.is_file():
-            raise FileNotFoundError
-        result = scan_artifact(str(storage_path))
+        if stored_path.startswith("gs://"):
+            result = _run_remote_sandbox(stored_path)
+        else:
+            if local_path is None or not local_path.is_file():
+                raise FileNotFoundError
+            result = scan_artifact(str(local_path))
         validated = ScanResult.model_validate(result)
     except Exception:
         logger.exception("Scanner integration failed for scan %s", scan_id)

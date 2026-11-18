@@ -50,10 +50,9 @@ def import_model_file(repo_id: str, revision: str, file_path: str) -> tuple[str,
     if QUARANTINE_BUCKET:
         from google.cloud import storage
 
-        storage.Client().bucket(QUARANTINE_BUCKET).blob(object_name).upload_from_filename(
-            str(local_file), if_generation_match=0
-        )
-        storage_path = f"gs://{QUARANTINE_BUCKET}/{object_name}"
+        blob = storage.Client().bucket(QUARANTINE_BUCKET).blob(object_name)
+        blob.upload_from_filename(str(local_file), if_generation_match=0)
+        storage_path = f"gs://{QUARANTINE_BUCKET}/{object_name}#{blob.generation}"
     else:
         LOCAL_QUARANTINE_DIR.mkdir(parents=True, exist_ok=True)
         target = LOCAL_QUARANTINE_DIR / object_name

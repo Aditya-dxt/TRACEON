@@ -6,6 +6,7 @@ from app.db.base import Base
 from app.db.models import Asset, AuditLogEntry, Scan
 from app.services.audit import append_audit_event, verify_audit_chain
 from app.services.policy import evaluate_scan
+from app.services import scan_runner
 from app.main import import_asset
 from app.models import ImportAssetRequest
 
@@ -68,3 +69,32 @@ def test_asset_import_persists_pinned_huggingface_source_and_audit(test_database
         assert response.format == "bin"
         assert session.get(Asset, "a_imported").status == "quarantined"
         assert verify_audit_chain(session)
+
+
+def test_remote_sandbox_uses_fixed_bucket_and_object_generation(monkeypatch):
+    import google.auth.transport.requests
+    import google.oauth2.id_token
+
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"scan_id": "sc_1"}
+
+    class FakeSession:
+        def __init__(self, credentials):
+            assert credentials == "id-token-credentials"
+
+        @staticmethod
+        def post(url, json, timeout):
+            assert url == "https://worker.example/scan"
+            assert json == {"object_name": "a_1/model.safetensors", "generation": 42}
+            assert timeout == (10, 210)
+            return FakeResponse()
+
+    monkeypatch.setenv("TRACEON_SANDBOX_URL", "https://worker.example/")
+    monkeypatch.setenv("TRACEON_QUARANTINE_BUCKET", "private-bucket")
+    monkeypatch.setattr(google.oauth2.id_token, "fetch_id_token_credentials", lambda audience, request: "id-token-credentials")
+    monkeypatch.setattr(google.auth.transport.requests, "AuthorizedSession", FakeSession)
+    assert scan_runner._run_remote_sandbox("gs://private-bucket/a_1/model.safetensors#42") == {"scan_id": "sc_1"}

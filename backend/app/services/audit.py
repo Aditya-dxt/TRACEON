@@ -3,7 +3,7 @@
 import hashlib
 import json
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from ..db.models import AuditLogEntry, utc_now
@@ -23,6 +23,9 @@ def append_audit_event(
 ) -> AuditLogEntry:
     """Hash the canonical event body together with the previous entry hash."""
 
+    if session.get_bind().dialect.name == "postgresql":
+        # Serialize chain appends across API processes; this lock is transaction scoped.
+        session.execute(text("SELECT pg_advisory_xact_lock(7319202401)"))
     previous = session.scalar(select(AuditLogEntry).order_by(AuditLogEntry.id.desc()).limit(1))
     previous_hash = previous.entry_hash if previous else None
     occurred_at = utc_now()
