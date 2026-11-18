@@ -45,3 +45,7 @@ Expected response:
 ```json
 {"status":"ok"}
 ```
+
+## Scanner jobs
+
+`POST /v1/scans` accepts an `asset_id` and queues a lightweight in-process task. An asset must already have a backend-managed `storage_path`; the path is not accepted from API callers or returned to them. The task calls `scanner.scan_artifact`, keeps its result document unchanged in the database, and indexes its findings. Poll `GET /v1/scans/{scan_id}` for the completed scanner result. This in-process runner is an MVP step; the sandbox worker will replace it for isolated scanning.

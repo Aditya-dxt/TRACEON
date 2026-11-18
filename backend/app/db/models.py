@@ -34,6 +34,8 @@ class Asset(Base):
     file_format: Mapped[str] = mapped_column("format", String(64), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Private backend location; it is never part of an API response.
+    storage_path: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="quarantined")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
 
@@ -59,6 +61,7 @@ class Scan(Base):
     __tablename__ = "scans"
 
     scan_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scanner_scan_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     asset_id: Mapped[str] = mapped_column(
         ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
     )

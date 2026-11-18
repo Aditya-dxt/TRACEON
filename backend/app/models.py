@@ -83,6 +83,17 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
 
 
+class StartScanRequest(BaseModel):
+    asset_id: str
+
+
+class ScanAcceptedResponse(BaseModel):
+    scan_id: str
+    asset_id: str
+    status: Literal["queued"]
+    queued_at: UtcTimestamp
+
+
 class ErrorResponse(BaseModel):
     error: str
     code: str
