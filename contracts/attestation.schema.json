@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traceon.dev/contracts/attestation.schema.json",
+  "title": "Attestation",
+  "description": "Schema for in-toto DSSE attestation statement binding artifact digest, BOM digest, verdict and policy.",
+  "type": "object",
+  "properties": {
+    "payloadType": {
+      "type": "string",
+      "default": "application/vnd.in-toto+json"
+    },
+    "payload": {
+      "type": "string",
+      "description": "Base64-encoded or raw JSON string of the in-toto Statement"
+    },
+    "statement": {
+      "type": "object",
+      "description": "Decoded in-toto statement (provided for clear inspection/verification).",
+      "properties": {
+        "_type": {
+          "type": "string",
+          "enum": ["https://in-toto.io/Statement/v1"]
+        },
+        "subject": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "digest": {
+                "type": "object",
+                "properties": {
+                  "sha256": { "type": "string" }
+                },
+                "required": ["sha256"]
+              }
+            },
+            "required": ["name", "digest"]
+          }
+        },
+        "predicateType": {
+          "type": "string"
+        },
+        "predicate": {
+          "type": "object",
+          "properties": {
+            "bomDigest": {
+              "type": "object",
+              "properties": {
+                "sha256": { "type": "string" }
+              },
+              "required": ["sha256"]
+            },
+            "scanId": { "type": "string" },
+            "engineVersion": { "type": "string" },
+            "policyId": { "type": "string" },
+            "policyVersion": { "type": "integer" },
+            "verdict": {
+              "type": "string",
+              "enum": ["APPROVE", "approved_with_conditions", "CONDITIONAL"]
+            },
+            "issuedAt": { "type": "string", "format": "date-time" },
+            "expiresAt": { "type": "string", "format": "date-time" },
+            "conditions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "checks": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          },
+          "required": [
+            "bomDigest",
+            "scanId",
+            "engineVersion",
+            "policyId",
+            "policyVersion",
+            "verdict",
+            "issuedAt",
+            "expiresAt"
+          ]
+        }
+      },
+      "required": ["_type", "subject", "predicateType", "predicate"]
+    },
+    "signatures": {
+      "type": "array",
+      "description": "DSSE digital signatures over payload.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "keyid": { "type": "string" },
+          "sig": { "type": "string" }
+        },
+        "required": ["keyid", "sig"]
+      }
+    }
+  },
+  "required": ["signatures"],
+  "additionalProperties": true
+}

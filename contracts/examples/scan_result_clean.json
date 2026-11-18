@@ -1,0 +1,35 @@
+{
+  "scan_id": "sc_002",
+  "engine_version": "0.1.0",
+  "artifact": {
+    "name": "model.safetensors",
+    "size_bytes": 4821034,
+    "sha256": "4b5d1a8e99b24b89c3e414c718fa65f242d5f072979fb63dcf8b394931a7c86a",
+    "detected_format": "safetensors"
+  },
+  "checks_run": [
+    { "name": "format_detect", "status": "pass" },
+    { "name": "sha256_hash", "status": "pass" },
+    { "name": "safetensors_verify", "status": "pass" },
+    { "name": "weight_stats", "status": "pass" }
+  ],
+  "findings": [
+    {
+      "finding_id": "f_info_001",
+      "check": "safetensors_verify",
+      "category": "serialization",
+      "severity": "informational",
+      "confidence": "high",
+      "deterministic": true,
+      "title": "Safetensors header verified clean",
+      "evidence": {
+        "header_size_bytes": 2048,
+        "tensors_count": 128,
+        "offsets_valid": true
+      },
+      "recommendation": "Safetensors structure is valid and non-executable."
+    }
+  ],
+  "started_at": "2026-11-20T10:05:00Z",
+  "completed_at": "2026-11-20T10:05:02Z"
+}

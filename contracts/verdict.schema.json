@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traceon.dev/contracts/verdict.schema.json",
+  "title": "Verdict",
+  "description": "Schema for policy engine verdict decision on an asset.",
+  "type": "object",
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "description": "Unique identifier for this policy decision."
+    },
+    "asset_id": {
+      "type": "string",
+      "description": "Identifier of the asset being evaluated."
+    },
+    "verdict": {
+      "type": "string",
+      "description": "Verdict produced by the policy engine.",
+      "enum": [
+        "BLOCK",
+        "QUARANTINE",
+        "CONDITIONAL",
+        "APPROVE"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "description": "List of explicit reasons or finding summaries supporting this verdict.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Identifier of the policy used for this decision."
+    },
+    "policy_version": {
+      "type": "integer",
+      "description": "Version number of the policy used."
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the decision was rendered."
+    }
+  },
+  "required": [
+    "decision_id",
+    "asset_id",
+    "verdict",
+    "reasons",
+    "policy_id",
+    "policy_version",
+    "decided_at"
+  ],
+  "additionalProperties": true
+}

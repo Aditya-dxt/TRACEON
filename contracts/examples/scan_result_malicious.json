@@ -1,0 +1,37 @@
+{
+  "scan_id": "sc_001",
+  "engine_version": "0.1.0",
+  "artifact": {
+    "name": "evil_model.bin",
+    "size_bytes": 1024,
+    "sha256": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+    "detected_format": "pickle"
+  },
+  "checks_run": [
+    { "name": "format_detect", "status": "pass" },
+    { "name": "sha256_hash", "status": "pass" },
+    { "name": "pickle_opcode", "status": "fail" },
+    { "name": "safetensors_verify", "status": "skipped" }
+  ],
+  "findings": [
+    {
+      "finding_id": "f_001",
+      "check": "pickle_opcode",
+      "category": "serialization",
+      "severity": "critical",
+      "confidence": "high",
+      "deterministic": true,
+      "title": "Deny-listed import in pickle",
+      "evidence": {
+        "module": "posix",
+        "callable": "system",
+        "offset": "0x0042",
+        "file": "evil_model.bin",
+        "sha256": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+      },
+      "recommendation": "Do not load this file. Request a Safetensors version."
+    }
+  ],
+  "started_at": "2026-11-20T10:00:00Z",
+  "completed_at": "2026-11-20T10:00:01Z"
+}

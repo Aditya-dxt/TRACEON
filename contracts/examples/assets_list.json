@@ -1,0 +1,38 @@
+[
+  {
+    "asset_id": "a_blocked_001",
+    "name": "malicious_checkpoint.bin",
+    "source": "huggingface:untrusted-user/financial-llm@rev-1",
+    "format": "pickle",
+    "size_bytes": 1024,
+    "sha256": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+    "latest_verdict": "BLOCK",
+    "latest_scan_id": "sc_001",
+    "attestation_id": null,
+    "created_at": "2026-11-20T10:00:00Z"
+  },
+  {
+    "asset_id": "a_quarantine_002",
+    "name": "experimental_weights.safetensors",
+    "source": "huggingface:community-lab/vision-backdoor-test@v2",
+    "format": "safetensors",
+    "size_bytes": 1048576,
+    "sha256": "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4",
+    "latest_verdict": "QUARANTINE",
+    "latest_scan_id": "sc_002",
+    "attestation_id": null,
+    "created_at": "2026-11-20T10:01:00Z"
+  },
+  {
+    "asset_id": "a_approved_003",
+    "name": "model.safetensors",
+    "source": "huggingface:google/gemma-2-2b@main",
+    "format": "safetensors",
+    "size_bytes": 4821034,
+    "sha256": "4b5d1a8e99b24b89c3e414c718fa65f242d5f072979fb63dcf8b394931a7c86a",
+    "latest_verdict": "APPROVE",
+    "latest_scan_id": "sc_003",
+    "attestation_id": "att_003",
+    "created_at": "2026-11-20T10:05:00Z"
+  }
+]

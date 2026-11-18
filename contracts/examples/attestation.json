@@ -1,0 +1,34 @@
+{
+  "payloadType": "application/vnd.in-toto+json",
+  "payload": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjEiLCJzdWJqZWN0IjpbeyJuYW1lIjoibW9kZWwuc2FmZXRlbnNvcnMiLCJkaWdlc3QiOnsic2hhMjU2IjoiNGI1ZDFhOGU5OWIyNGI4OWMzZTQxNGM3MThmYTY1ZjI0MmQ1ZjA3Mjk3OWZiNjNkY2Y4YjM5NDkzMWE3Yzg2YSJ9fV0sInByZWRpY2F0ZVR5cGUiOiJodHRwczovL3RyYWNlb24uZXhhbXBsZS9wcmVkaWNhdGUvbW9kZWwtYXNzZXNzbWVudC92MSIsInByZWRpY2F0ZSI6eyJib21EaWdlc3QiOnsic2hhMjU2IjoiYzc5ZjhhZWE3ODFmZDUwNmI4OGU4ZDMyMTFhNWQzOGQ4YjJmYWRlNGYyYzA3MGEyOGI0N2ExZjA5NDNjMjQ2YSJ9LCJzY2FuSWQiOiJzY18wMDMiLCJlbmdpbmVWZXJzaW9uIjoiMC4xLjAiLCJwb2xpY3lJZCI6ImRlZmF1bHQiLCJwb2xpY3lWZXJzaW9uIjoxLCJ2ZXJkaWN0IjoiQVBQUk9WRSIsImlzc3VlZEF0IjoiMjAyNi0xMS0yMFQxMDowNTowMFoiLCJleHBpcmVzQXQiOiIyMDI3LTAyLTIwVDEwOjA1OjAwWiJ9fQ==",
+  "statement": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "subject": [
+      {
+        "name": "model.safetensors",
+        "digest": {
+          "sha256": "4b5d1a8e99b24b89c3e414c718fa65f242d5f072979fb63dcf8b394931a7c86a"
+        }
+      }
+    ],
+    "predicateType": "https://traceon.example/predicate/model-assessment/v1",
+    "predicate": {
+      "bomDigest": {
+        "sha256": "c79f8aea781fd506b88e8d3211a5d38d8b2fade4f2c070a28b47a1f0943c246a"
+      },
+      "scanId": "sc_003",
+      "engineVersion": "0.1.0",
+      "policyId": "default",
+      "policyVersion": 1,
+      "verdict": "APPROVE",
+      "issuedAt": "2026-11-20T10:05:00Z",
+      "expiresAt": "2027-02-20T10:05:00Z"
+    }
+  },
+  "signatures": [
+    {
+      "keyid": "gcp-kms-projects/traceon-prod/locations/global/keyRings/attestation/cryptoKeys/signer/cryptoKeyVersions/1",
+      "sig": "MEQCIFz8m6Vj4n7Jq89X+1o/f8QeZ0lYd4b4K3U51wK3V9/VAiB8D2Vp/0sJ3k91pM3+7a3W3Q+Yv9p8R1n4r6v8u=="
+    }
+  ]
+}

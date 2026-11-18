@@ -1,0 +1,9 @@
+{
+  "valid": true,
+  "subject_digest": "4b5d1a8e99b24b89c3e414c718fa65f242d5f072979fb63dcf8b394931a7c86a",
+  "bom_digest": "c79f8aea781fd506b88e8d3211a5d38d8b2fade4f2c070a28b47a1f0943c246a",
+  "verdict": "APPROVE",
+  "attestation_id": "att_003",
+  "key_id": "gcp-kms-projects/traceon-prod/locations/global/keyRings/attestation/cryptoKeys/signer/cryptoKeyVersions/1",
+  "verified_at": "2026-11-20T10:10:00Z"
+}

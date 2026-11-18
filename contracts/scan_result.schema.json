@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traceon.dev/contracts/scan_result.schema.json",
+  "title": "ScanResult",
+  "description": "Schema for the scan result returned by the scanner and stored by the backend.",
+  "type": "object",
+  "properties": {
+    "scan_id": {
+      "type": "string",
+      "description": "Unique identifier for this scan run."
+    },
+    "engine_version": {
+      "type": "string",
+      "description": "Version of the scanning engine used."
+    },
+    "artifact": {
+      "type": "object",
+      "description": "Metadata of the artifact scanned.",
+      "properties": {
+        "name": { "type": "string" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string" },
+        "detected_format": { "type": "string" }
+      },
+      "required": ["name", "size_bytes", "sha256", "detected_format"],
+      "additionalProperties": true
+    },
+    "checks_run": {
+      "type": "array",
+      "description": "List of checks executed during this scan.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "warn", "fail", "skipped", "error"]
+          },
+          "details": { "type": "string" }
+        },
+        "required": ["name", "status"],
+        "additionalProperties": true
+      }
+    },
+    "findings": {
+      "type": "array",
+      "description": "List of findings discovered during the scan.",
+      "items": {
+        "$ref": "finding.schema.json"
+      }
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the scan started."
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the scan completed."
+    }
+  },
+  "required": [
+    "scan_id",
+    "engine_version",
+    "artifact",
+    "checks_run",
+    "findings",
+    "started_at",
+    "completed_at"
+  ],
+  "additionalProperties": true
+}

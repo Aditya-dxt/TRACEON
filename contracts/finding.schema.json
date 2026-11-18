@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traceon.dev/contracts/finding.schema.json",
+  "title": "Finding",
+  "description": "Schema for an individual security check finding in Traceon.",
+  "type": "object",
+  "properties": {
+    "finding_id": {
+      "type": "string",
+      "description": "Unique identifier for this finding (e.g. f_001)."
+    },
+    "check": {
+      "type": "string",
+      "description": "Identifier of the check that discovered this finding (e.g. pickle_opcode, safetensors_verify)."
+    },
+    "category": {
+      "type": "string",
+      "description": "Category of the finding.",
+      "enum": [
+        "serialization",
+        "weights",
+        "dataset",
+        "dependency",
+        "provenance",
+        "licence",
+        "secrets",
+        "iam",
+        "runtime",
+        "agent"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "description": "Severity level of the finding.",
+      "enum": [
+        "informational",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "description": "Confidence level of the detection.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "deterministic": {
+      "type": "boolean",
+      "description": "True for opcode, hash, and structure checks. False for statistical and behavioural ones."
+    },
+    "title": {
+      "type": "string",
+      "description": "Concise human-readable title describing the finding."
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Evidence supporting the finding (e.g. module, callable, offset, sha256)."
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "Actionable guidance to remediate the issue."
+    }
+  },
+  "required": [
+    "finding_id",
+    "check",
+    "category",
+    "severity",
+    "confidence",
+    "deterministic",
+    "title",
+    "evidence",
+    "recommendation"
+  ],
+  "additionalProperties": true
+}
