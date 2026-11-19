@@ -23,7 +23,9 @@ def import_model_file(repo_id: str, revision: str, file_path: str) -> tuple[str,
     normalized = PurePosixPath(file_path)
     if normalized.is_absolute() or ".." in normalized.parts or "" in normalized.parts:
         raise HTTPException(status_code=422, detail={"error": "Invalid repository file path", "code": "INVALID_FILE_PATH"})
-    token = os.getenv("HF_TOKEN") or None
+    # Avoid using a cached personal Hub login implicitly. Private access must be
+    # supplied explicitly through the runtime's HF_TOKEN secret.
+    token = os.getenv("HF_TOKEN") or False
     try:
         info = HfApi().model_info(repo_id=repo_id, revision=revision, files_metadata=True, token=token)
         commit = info.sha
