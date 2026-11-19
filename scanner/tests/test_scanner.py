@@ -198,3 +198,89 @@ def test_scanner_non_raising_on_nonexistent_or_bad_path():
 
     ds_result = scan_dataset("non_existent_dir_path_12345")
     assert len(ds_result["findings"]) >= 1
+
+
+def test_pytorch_zip_evil_detected(validator):
+    evil_pt = CORPUS_DIR / "pytorch_evil.pt"
+    assert evil_pt.exists()
+
+    result = scan_artifact(str(evil_pt))
+    validator.validate(instance=result)
+
+    assert result["artifact"]["detected_format"] == "pytorch_zip"
+    check_statuses = {c["name"]: c["status"] for c in result["checks_run"]}
+    assert check_statuses.get("pickle_opcode") == "fail"
+
+    critical_findings = [f for f in result["findings"] if f["severity"] == "critical"]
+    assert len(critical_findings) >= 1
+    assert critical_findings[0]["evidence"]["module"] == "posix"
+    assert critical_findings[0]["evidence"]["callable"] == "system"
+
+
+def test_pytorch_zip_clean_passes(validator):
+    clean_pt = CORPUS_DIR / "pytorch_clean.pt"
+    assert clean_pt.exists()
+
+    result = scan_artifact(str(clean_pt))
+    validator.validate(instance=result)
+
+    assert result["artifact"]["detected_format"] == "pytorch_zip"
+    check_statuses = {c["name"]: c["status"] for c in result["checks_run"]}
+    assert check_statuses.get("pickle_opcode") == "pass"
+
+    critical_or_high = [f for f in result["findings"] if f["severity"] in ("critical", "high")]
+    assert len(critical_or_high) == 0
+
+
+def test_dataset_guard_parquet_and_jsonl(tmp_path, validator):
+    test_ds = tmp_path / "extended_ds"
+    test_ds.mkdir()
+
+    # 1. Spoofed Parquet (ends with .parquet but has invalid magic)
+    bad_parquet = test_ds / "corrupt.parquet"
+    bad_parquet.write_bytes(b"NOT_PARQUET_MAGIC_BYTES_1234")
+
+    # 2. Corrupt JSONL
+    bad_jsonl = test_ds / "data.jsonl"
+    bad_jsonl.write_text('{"id": 1, "prompt": "hi"}\n{malformed json line}\n', encoding="utf-8")
+
+    result = scan_dataset(str(test_ds))
+    validator.validate(instance=result)
+
+    findings = result["findings"]
+    titles = [f["title"] for f in findings]
+    assert any("Parquet" in t for t in titles)
+    assert any("JSONL" in t for t in titles)
+
+
+def test_weight_diff_against_base(tmp_path, validator):
+    import struct
+    # Create base safetensors
+    base_file = tmp_path / "base.safetensors"
+    base_raw = struct.pack("<4f", 1.0, 1.0, 1.0, 1.0)
+    base_hdr = json.dumps({"weight": {"dtype": "F32", "shape": [2, 2], "data_offsets": [0, 16]}}).encode("utf-8")
+    with open(base_file, "wb") as f:
+        f.write(struct.pack("<Q", len(base_hdr)))
+        f.write(base_hdr)
+        f.write(base_raw)
+
+    # Create target safetensors with an unexpected extra layer
+    target_file = tmp_path / "target.safetensors"
+    target_raw = struct.pack("<8f", 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0)
+    target_hdr = json.dumps({
+        "weight": {"dtype": "F32", "shape": [2, 2], "data_offsets": [0, 16]},
+        "unexpected_extra_layer": {"dtype": "F32", "shape": [2, 2], "data_offsets": [16, 32]}
+    }).encode("utf-8")
+    with open(target_file, "wb") as f:
+        f.write(struct.pack("<Q", len(target_hdr)))
+        f.write(target_hdr)
+        f.write(target_raw)
+
+    result = scan_artifact(str(target_file), base_model_path=str(base_file))
+    validator.validate(instance=result)
+
+    diff_findings = [f for f in result["findings"] if "unexpected_extra_layer" in str(f.get("evidence", {}))]
+    assert len(diff_findings) >= 1
+    assert diff_findings[0]["deterministic"] is False
+    assert diff_findings[0]["severity"] != "critical"
+

@@ -25,7 +25,7 @@ from scanner.config import MAX_FILE_SIZE_BYTES
 ENGINE_VERSION = "0.1.0"
 
 
-def scan_artifact(path: str) -> Dict[str, Any]:
+def scan_artifact(path: str, base_model_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Scans a model artifact (pickle, safetensors, pytorch zip, onnx, etc.)
     Returns a dictionary conforming to contracts/scan_result.schema.json.
@@ -34,6 +34,7 @@ def scan_artifact(path: str) -> Dict[str, Any]:
     started_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     scan_id = f"sc_{uuid.uuid4().hex[:8]}"
     file_path = Path(path)
+    base_path = Path(base_model_path) if base_model_path else None
 
     checks_run = []
     findings = []
@@ -109,7 +110,9 @@ def scan_artifact(path: str) -> Dict[str, Any]:
             # If Safetensors is structurally valid, analyze tensor weights
             if st_status == "pass":
                 weight_analyzer = WeightAnalyzer()
-                w_status, w_findings = weight_analyzer.analyze_safetensors_weights(file_path, sha256)
+                w_status, w_findings = weight_analyzer.analyze_safetensors_weights(
+                    file_path, sha256, base_model_path=base_path
+                )
                 checks_run.append({"name": "weight_stats", "status": w_status})
                 findings.extend(w_findings)
             else:

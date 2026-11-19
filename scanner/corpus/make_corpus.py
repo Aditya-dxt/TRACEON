@@ -141,6 +141,27 @@ def make_corpus(output_dir: Path):
     (mismatch_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"Created hash mismatch directory: {mismatch_dir}")
 
+    # 7. pytorch_clean.pt: Synthetic PyTorch ZIP checkpoint (benign)
+    import zipfile
+    clean_pt_path = output_dir / "pytorch_clean.pt"
+    with zipfile.ZipFile(clean_pt_path, "w") as zf:
+        zf.writestr("archive/version", "3\n")
+        zf.writestr("archive/byteorder", "little\n")
+        # Safe serialized dict inside data.pkl
+        clean_pkl_bytes = pickle.dumps({"layer1.weight": [1.0, 2.0], "layer1.bias": [0.1]}, protocol=4)
+        zf.writestr("archive/data.pkl", clean_pkl_bytes)
+    print(f"Created {clean_pt_path} ({clean_pt_path.stat().st_size} bytes)")
+
+    # 8. pytorch_evil.pt: Synthetic PyTorch ZIP checkpoint containing nested malicious pickle
+    evil_pt_path = output_dir / "pytorch_evil.pt"
+    with zipfile.ZipFile(evil_pt_path, "w") as zf:
+        zf.writestr("archive/version", "3\n")
+        zf.writestr("archive/byteorder", "little\n")
+        # Malicious payload in data.pkl
+        evil_pkl_bytes = create_pickle_with_import("posix", "system", "whoami")
+        zf.writestr("archive/data.pkl", evil_pkl_bytes)
+    print(f"Created {evil_pt_path} ({evil_pt_path.stat().st_size} bytes)")
+
 
 if __name__ == "__main__":
     current_dir = Path(__file__).resolve().parent

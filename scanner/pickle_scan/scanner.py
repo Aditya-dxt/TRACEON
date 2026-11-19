@@ -72,10 +72,9 @@ class PickleOpcodeScanner:
 
                 # Handle STACK_GLOBAL opcode (Protocol 4+)
                 elif opcode.name == "STACK_GLOBAL":
-                    # STACK_GLOBAL pulls module and name from stack
-                    # Because we don't execute, we track recent string pushes on stack
-                    module = stack.pop() if stack else "unknown_stack_module"
+                    # STACK_GLOBAL pulls callable_name from top of stack, then module from below it
                     callable_name = stack.pop() if stack else "unknown_stack_callable"
+                    module = stack.pop() if stack else "unknown_stack_module"
                     if isinstance(module, str) and isinstance(callable_name, str):
                         # Clean string representations
                         module = module.strip("'\"")

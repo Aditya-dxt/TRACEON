@@ -58,13 +58,12 @@ def detect_format(file_path: Path) -> Tuple[str, Dict[str, Any]]:
         return "parquet", {"magic": "PAR1"}
 
     # 4. Check Safetensors:
-    # 8-byte uint64 LE header size, followed by JSON starting with '{'
-    if file_size >= 10:
+    # 8-byte uint64 LE header size, followed by JSON starting with '{', or .safetensors extension
+    is_safetensors_ext = file_path.suffix.lower() == ".safetensors"
+    if file_size >= 8:
         header_len = struct.unpack("<Q", header[:8])[0]
-        if 2 <= header_len < 100 * 1024 * 1024 and (8 + header_len) <= file_size:
-            # Check if next byte is '{'
-            if len(header) > 8 and header[8:9] == b"{":
-                return "safetensors", {"header_len": header_len}
+        if (2 <= header_len < 100 * 1024 * 1024 and (8 + header_len) <= file_size and len(header) > 8 and header[8:9] == b"{") or is_safetensors_ext:
+            return "safetensors", {"header_len": header_len}
 
     # 5. Check ZIP / PyTorch Zip Archive (Magic: PK\x03\x04)
     if header.startswith(b"PK\x03\x04"):

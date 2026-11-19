@@ -28,6 +28,7 @@ def main():
     # Command: scan
     scan_parser = subparsers.add_parser("scan", help="Scan a model artifact file")
     scan_parser.add_argument("--file", required=True, help="Path to model file to scan")
+    scan_parser.add_argument("--base-model", required=False, default=None, help="Optional path to base model for weight diffing")
 
     # Command: dataset
     dataset_parser = subparsers.add_parser("dataset", help="Scan a dataset directory")
@@ -41,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "scan":
-        result = scan_artifact(args.file)
+        result = scan_artifact(args.file, base_model_path=args.base_model)
         print(json.dumps(result, indent=2))
         sys.exit(0)
 

@@ -111,11 +111,15 @@ class DatasetGuard:
                                 "recommendation": "File content does not match publisher manifest. Reject or re-fetch."
                             })
 
-                # 4. Basic schema validation for CSV/JSON
+                # 4. Basic schema validation for CSV/JSON/JSONL/Parquet
                 if ext == ".csv":
                     self._check_csv_schema(fpath, dir_path, findings, files_inspected)
                 elif ext == ".json":
                     self._check_json_schema(fpath, dir_path, findings, files_inspected)
+                elif ext in (".jsonl", ".ndjson"):
+                    self._check_jsonl_schema(fpath, dir_path, findings, files_inspected)
+                elif ext == ".parquet":
+                    self._check_parquet_integrity(fpath, dir_path, findings, files_inspected)
 
         # Informational finding if everything was clean
         if not findings:
@@ -209,4 +213,101 @@ class DatasetGuard:
                 "title": f"JSON parse warning on {fpath.name}: {str(e)}",
                 "evidence": {"error": str(e), "file": fpath.relative_to(dir_path).as_posix()},
                 "recommendation": "Ensure JSON formatting is valid."
+            })
+
+    def _check_jsonl_schema(self, fpath: Path, dir_path: Path, findings: list, idx: int):
+        corrupted_lines = 0
+        total_lines = 0
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    total_lines += 1
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        json.loads(line)
+                    except Exception:
+                        corrupted_lines += 1
+                        if corrupted_lines >= 5:
+                            break
+            if corrupted_lines > 0:
+                findings.append({
+                    "finding_id": f"f_ds_jsonl_err_{idx}",
+                    "check": "dataset_guard",
+                    "category": "dataset",
+                    "severity": "medium",
+                    "confidence": "high",
+                    "deterministic": True,
+                    "title": f"Malformed records detected in JSONL dataset: {fpath.name}",
+                    "evidence": {
+                        "file": fpath.relative_to(dir_path).as_posix(),
+                        "corrupted_sample_count": corrupted_lines,
+                        "lines_inspected": total_lines
+                    },
+                    "recommendation": "Dataset contains invalid JSON records that could fail training loaders."
+                })
+        except Exception as e:
+            findings.append({
+                "finding_id": f"f_ds_jsonl_read_err_{idx}",
+                "check": "dataset_guard",
+                "category": "dataset",
+                "severity": "low",
+                "confidence": "high",
+                "deterministic": True,
+                "title": f"Error reading JSONL dataset {fpath.name}: {str(e)}",
+                "evidence": {"error": str(e), "file": fpath.relative_to(dir_path).as_posix()},
+                "recommendation": "Review dataset encoding and permissions."
+            })
+
+    def _check_parquet_integrity(self, fpath: Path, dir_path: Path, findings: list, idx: int):
+        """Verifies Parquet file starts and ends with standard PAR1 magic bytes."""
+        try:
+            f_size = fpath.stat().st_size
+            if f_size < 12:
+                findings.append({
+                    "finding_id": f"f_ds_parquet_small_{idx}",
+                    "check": "dataset_guard",
+                    "category": "dataset",
+                    "severity": "high",
+                    "confidence": "high",
+                    "deterministic": True,
+                    "title": f"Truncated Parquet file: {fpath.name}",
+                    "evidence": {"file": fpath.relative_to(dir_path).as_posix(), "size": f_size},
+                    "recommendation": "Parquet files must be at least 12 bytes."
+                })
+                return
+
+            with open(fpath, "rb") as f:
+                header = f.read(4)
+                f.seek(-4, os.SEEK_END)
+                footer = f.read(4)
+
+            if header != b"PAR1" or footer != b"PAR1":
+                findings.append({
+                    "finding_id": f"f_ds_parquet_corrupt_{idx}",
+                    "check": "dataset_guard",
+                    "category": "dataset",
+                    "severity": "high",
+                    "confidence": "high",
+                    "deterministic": True,
+                    "title": f"Spoofed or corrupted Parquet file: {fpath.name}",
+                    "evidence": {
+                        "file": fpath.relative_to(dir_path).as_posix(),
+                        "header_magic": header.hex(),
+                        "footer_magic": footer.hex()
+                    },
+                    "recommendation": "File with .parquet extension lacks PAR1 magic markers; potential extension spoofing."
+                })
+        except Exception as e:
+            findings.append({
+                "finding_id": f"f_ds_parquet_err_{idx}",
+                "check": "dataset_guard",
+                "category": "dataset",
+                "severity": "medium",
+                "confidence": "high",
+                "deterministic": True,
+                "title": f"Failed checking Parquet magic markers: {str(e)}",
+                "evidence": {"error": str(e), "file": fpath.relative_to(dir_path).as_posix()},
+                "recommendation": "Inspect file readability."
             })
