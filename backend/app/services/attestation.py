@@ -9,7 +9,7 @@ from typing import Any
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa, utils
 
 PAYLOAD_TYPE = "application/vnd.in-toto+json"
 STATEMENT_TYPE = "https://in-toto.io/Statement/v1"
@@ -98,9 +98,9 @@ def verify_signature(public_key: Any, algorithm: str, signature: bytes, pae_dige
             verifier = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=hashes.SHA256().digest_size)
         else:
             verifier = padding.PKCS1v15()
-        public_key.verify(signature, pae_digest, verifier, hashes.SHA256())
+        public_key.verify(signature, pae_digest, verifier, utils.Prehashed(hashes.SHA256()))
     elif isinstance(public_key, ec.EllipticCurvePublicKey):
-        public_key.verify(signature, pae_digest, ec.ECDSA(hashes.SHA256()))
+        public_key.verify(signature, pae_digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
     else:
         raise TypeError("Unsupported attestation public key type")
 
