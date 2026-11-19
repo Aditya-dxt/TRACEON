@@ -9,6 +9,7 @@ spec:
     metadata:
       annotations:
         run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:REGION:traceon-staging-pg
     spec:
       serviceAccountName: traceon-backend@PROJECT_ID.iam.gserviceaccount.com
       containerConcurrency: 20

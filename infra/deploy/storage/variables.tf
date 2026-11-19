@@ -12,3 +12,9 @@ variable "bucket_location" {
   description = "Cloud Storage location for the quarantine and evidence buckets."
   type        = string
 }
+
+variable "database_tier" {
+  description = "Cloud SQL machine tier for this staging-only PostgreSQL instance. db-f1-micro is a shared-core, low-cost development tier without an SLA."
+  type        = string
+  default     = "db-f1-micro"
+}
