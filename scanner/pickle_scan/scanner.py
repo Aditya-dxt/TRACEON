@@ -18,6 +18,7 @@ from scanner.config import (
     SAFE_ALLOWED_GLOBALS,
     MAX_PICKLE_NESTING_DEPTH
 )
+from scanner.threat_intel import lookup_signature
 
 
 class PickleOpcodeScanner:
@@ -123,27 +124,42 @@ class PickleOpcodeScanner:
         sha256: str,
         finding_id: str
     ) -> Dict[str, Any] | None:
+        # Check against Threat Intelligence signatures
+        sig = lookup_signature(module, callable_name)
+
         # Check against Deny-List
         is_module_denied = module in self.deny_modules or any(module.startswith(m + ".") for m in self.deny_modules)
         is_callable_denied = callable_name in self.deny_callables
 
-        if is_module_denied or is_callable_denied:
+        if sig or is_module_denied or is_callable_denied:
+            severity = sig.severity if sig else "critical"
+            title = f"Deny-listed import in pickle: {module}.{callable_name}"
+            recommendation = sig.recommendation if sig else "Do not load this file. Request a Safetensors version."
+            
+            evidence = {
+                "module": module,
+                "callable": callable_name,
+                "offset": offset,
+                "file": file_name,
+                "sha256": sha256
+            }
+            if sig:
+                evidence["threat_category"] = sig.category
+                evidence["mitre_atlas"] = sig.mitre_atlas
+                evidence["cwe"] = sig.cwe
+                evidence["att_and_ck"] = sig.att_and_ck
+                evidence["description"] = sig.description
+
             return {
                 "finding_id": finding_id,
                 "check": "pickle_opcode",
                 "category": "serialization",
-                "severity": "critical",
+                "severity": severity,
                 "confidence": "high",
                 "deterministic": True,
-                "title": f"Deny-listed import in pickle: {module}.{callable_name}",
-                "evidence": {
-                    "module": module,
-                    "callable": callable_name,
-                    "offset": offset,
-                    "file": file_name,
-                    "sha256": sha256
-                },
-                "recommendation": "Do not load this file. Request a Safetensors version."
+                "title": title,
+                "evidence": evidence,
+                "recommendation": recommendation
             }
 
         # Check against Safe Allow-List

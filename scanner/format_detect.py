@@ -45,8 +45,8 @@ def detect_format(file_path: Path) -> Tuple[str, Dict[str, Any]]:
     with open(file_path, "rb") as f:
         header = f.read(min(1024, file_size))
 
-    # 1. Check GGUF (Magic: b'GGUF')
-    if header.startswith(b"GGUF"):
+    # 1. Check GGUF (Magic: b'GGUF' or .gguf extension)
+    if header.startswith(b"GGUF") or file_path.suffix.lower() == ".gguf":
         return "gguf", {"magic": "GGUF"}
 
     # 2. Check NumPy (Magic: b'\x93NUMPY')
@@ -99,8 +99,8 @@ def detect_format(file_path: Path) -> Tuple[str, Dict[str, Any]]:
         except Exception:
             pass
 
-    # 8. Check ONNX (Protobuf - typically starts with field tag \x08 for ir_version)
-    if header.startswith(b"\x08") and file_path.suffix.lower() == ".onnx":
+    # 8. Check ONNX (Protobuf - typically starts with field tag \x08 for ir_version, or .onnx extension)
+    if file_path.suffix.lower() == ".onnx" or (header.startswith(b"\x08") and b"onnx" in header[:256].lower()):
         return "onnx", {}
 
     return "unknown", {"extension": file_path.suffix}

@@ -162,6 +162,41 @@ def make_corpus(output_dir: Path):
         zf.writestr("archive/data.pkl", evil_pkl_bytes)
     print(f"Created {evil_pt_path} ({evil_pt_path.stat().st_size} bytes)")
 
+    # 9. clean.gguf: Synthetic valid GGUF model
+    clean_gguf = output_dir / "clean.gguf"
+    with open(clean_gguf, "wb") as f:
+        f.write(b"GGUF")
+        f.write(struct.pack("<I", 3))  # version 3
+        f.write(struct.pack("<Q", 1))  # tensor_count = 1
+        f.write(struct.pack("<Q", 1))  # metadata_kv_count = 1
+        # KV: key = "general.architecture", type = string (8), value = "llama"
+        k_name = b"general.architecture"
+        f.write(struct.pack("<Q", len(k_name)))
+        f.write(k_name)
+        f.write(struct.pack("<I", 8))  # string type
+        val_name = b"llama"
+        f.write(struct.pack("<Q", len(val_name)))
+        f.write(val_name)
+    print(f"Created {clean_gguf} ({clean_gguf.stat().st_size} bytes)")
+
+    # 10. malformed.gguf: Truncated GGUF header
+    malformed_gguf = output_dir / "malformed.gguf"
+    malformed_gguf.write_bytes(b"GGUF\x03\x00\x00\x00")  # truncated
+    print(f"Created {malformed_gguf} ({malformed_gguf.stat().st_size} bytes)")
+
+    # 11. clean.onnx: Minimal valid ONNX model structure
+    clean_onnx = output_dir / "clean.onnx"
+    # Tag 1 (ir_version): varint 7 (\x08\x07)
+    # Tag 2 (producer_name): string 'onnx' (\x12\x04onnx)
+    clean_onnx.write_bytes(b"\x08\x07\x12\x04onnx\x1a\x07test_graph")
+    print(f"Created {clean_onnx} ({clean_onnx.stat().st_size} bytes)")
+
+    # 12. traversal.onnx: Malicious ONNX with external path traversal
+    traversal_onnx = output_dir / "traversal.onnx"
+    # Contains 'location' followed by path traversal string '../../../../etc/shadow'
+    traversal_onnx.write_bytes(b"\x08\x07\x12\x04onnxlocation../../../../etc/shadow")
+    print(f"Created {traversal_onnx} ({traversal_onnx.stat().st_size} bytes)")
+
 
 if __name__ == "__main__":
     current_dir = Path(__file__).resolve().parent

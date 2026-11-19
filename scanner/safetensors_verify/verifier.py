@@ -179,7 +179,9 @@ class SafetensorsVerifier:
                         "available_buffer_bytes": available_buffer,
                         "declared_offset_end": end_offset,
                         "file_size": file_size,
-                        "sha256": sha256
+                        "sha256": sha256,
+                        "cwe": "CWE-125 (Out-of-bounds Read)",
+                        "mitre_atlas": "AML.T0011.000 (Unsafe AI Artifacts)"
                     },
                     "recommendation": "Do not load this file. Offset references non-existent bytes past EOF."
                 })

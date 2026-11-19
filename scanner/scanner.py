@@ -17,6 +17,8 @@ from typing import Dict, Any, List, Optional
 from scanner.format_detect import compute_sha256_and_size, detect_format
 from scanner.pickle_scan import PickleOpcodeScanner
 from scanner.safetensors_verify import SafetensorsVerifier
+from scanner.gguf_verify import GGUFVerifier
+from scanner.onnx_verify import ONNXVerifier
 from scanner.dataset_guard import DatasetGuard
 from scanner.weights import WeightAnalyzer
 from scanner.bom import generate_bom as bom_generator
@@ -117,6 +119,24 @@ def scan_artifact(path: str, base_model_path: Optional[str] = None) -> Dict[str,
                 findings.extend(w_findings)
             else:
                 checks_run.append({"name": "weight_stats", "status": "skipped"})
+
+        elif format_str == "gguf":
+            checks_run.append({"name": "pickle_opcode", "status": "skipped"})
+            checks_run.append({"name": "safetensors_verify", "status": "skipped"})
+            checks_run.append({"name": "weight_stats", "status": "skipped"})
+            gguf_verifier = GGUFVerifier()
+            g_status, g_findings = gguf_verifier.verify_file(file_path, sha256)
+            checks_run.append({"name": "gguf_verify", "status": g_status})
+            findings.extend(g_findings)
+
+        elif format_str == "onnx":
+            checks_run.append({"name": "pickle_opcode", "status": "skipped"})
+            checks_run.append({"name": "safetensors_verify", "status": "skipped"})
+            checks_run.append({"name": "weight_stats", "status": "skipped"})
+            onnx_verifier = ONNXVerifier()
+            o_status, o_findings = onnx_verifier.verify_file(file_path, sha256)
+            checks_run.append({"name": "onnx_verify", "status": o_status})
+            findings.extend(o_findings)
 
         else:
             # Fallback for unknown / other formats

@@ -284,3 +284,80 @@ def test_weight_diff_against_base(tmp_path, validator):
     assert diff_findings[0]["deterministic"] is False
     assert diff_findings[0]["severity"] != "critical"
 
+
+def test_gguf_clean_passes(validator):
+    clean_gguf = CORPUS_DIR / "clean.gguf"
+    assert clean_gguf.exists()
+
+    result = scan_artifact(str(clean_gguf))
+    validator.validate(instance=result)
+
+    assert result["artifact"]["detected_format"] == "gguf"
+    check_statuses = {c["name"]: c["status"] for c in result["checks_run"]}
+    assert check_statuses.get("gguf_verify") == "pass"
+
+    crit_or_high = [f for f in result["findings"] if f["severity"] in ("critical", "high")]
+    assert len(crit_or_high) == 0
+
+
+def test_gguf_malformed_fails(validator):
+    malformed_gguf = CORPUS_DIR / "malformed.gguf"
+    assert malformed_gguf.exists()
+
+    result = scan_artifact(str(malformed_gguf))
+    validator.validate(instance=result)
+
+    assert result["artifact"]["detected_format"] == "gguf"
+    check_statuses = {c["name"]: c["status"] for c in result["checks_run"]}
+    assert check_statuses.get("gguf_verify") == "fail"
+
+    crit = [f for f in result["findings"] if f["severity"] == "critical"]
+    assert len(crit) >= 1
+
+
+def test_onnx_traversal_fails(validator):
+    traversal_onnx = CORPUS_DIR / "traversal.onnx"
+    assert traversal_onnx.exists()
+
+    result = scan_artifact(str(traversal_onnx))
+    validator.validate(instance=result)
+
+    assert result["artifact"]["detected_format"] == "onnx"
+    check_statuses = {c["name"]: c["status"] for c in result["checks_run"]}
+    assert check_statuses.get("onnx_verify") == "fail"
+
+    crit = [f for f in result["findings"] if f["severity"] == "critical"]
+    assert len(crit) >= 1
+    assert "CWE-22" in crit[0]["evidence"]["cwe"]
+    assert "AML.T0011" in crit[0]["evidence"]["mitre_atlas"]
+
+
+def test_onnx_clean_passes(validator):
+    clean_onnx = CORPUS_DIR / "clean.onnx"
+    assert clean_onnx.exists()
+
+    result = scan_artifact(str(clean_onnx))
+    validator.validate(instance=result)
+
+    assert result["artifact"]["detected_format"] == "onnx"
+    check_statuses = {c["name"]: c["status"] for c in result["checks_run"]}
+    assert check_statuses.get("onnx_verify") == "pass"
+
+    crit_or_high = [f for f in result["findings"] if f["severity"] in ("critical", "high")]
+    assert len(crit_or_high) == 0
+
+
+def test_threat_intel_mitre_atlas_and_cwe_enriched(validator):
+    evil_path = CORPUS_DIR / "evil.bin"
+    result = scan_artifact(str(evil_path))
+    validator.validate(instance=result)
+
+    findings = result["findings"]
+    assert len(findings) >= 1
+    f = findings[0]
+    assert "mitre_atlas" in f["evidence"]
+    assert "AML.T0011" in f["evidence"]["mitre_atlas"]
+    assert "cwe" in f["evidence"]
+    assert "CWE-78" in f["evidence"]["cwe"]
+
+

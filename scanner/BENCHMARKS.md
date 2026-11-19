@@ -21,27 +21,55 @@ In accordance with Traceon's defensive engineering guidelines, all testing is co
 | `scanner/corpus/pytorch_clean.pt` | PyTorch ZIP | 435 B | PyTorch ZIP with safe state dictionary | 🟢 `PASS` (0 findings) |
 | `scanner/corpus/valid.safetensors` | Safetensors | 144 B | Valid header and memory offsets | 🟢 `PASS` (informational only) |
 | `scanner/corpus/malformed.safetensors` | Safetensors | 90 B | Offset points to `100,000` (past EOF) | 🔴 `CRITICAL` finding (`fail`) |
+| `scanner/corpus/clean.gguf` | GGUF (v3) | 260 B | Valid magic `GGUF`, schema, and benign chat template | 🟢 `PASS` (0 findings) |
+| `scanner/corpus/malformed.gguf` | GGUF (v3) | 280 B | Embedded Jinja2 chat template containing shell injection | 🔴 `CRITICAL` finding (`fail`) |
+| `scanner/corpus/clean.onnx` | ONNX | 170 B | Valid protobuf graph and safe standard operators | 🟢 `PASS` (0 findings) |
+| `scanner/corpus/traversal.onnx` | ONNX | 195 B | External tensor location with `../../etc/passwd` path traversal | 🔴 `CRITICAL` finding (`fail`) |
 | `scanner/corpus/dataset_script/` | Directory | 165 B | Unexpected `.py` script inside dataset | 🟡 `HIGH` finding (`fail`) |
 | `scanner/corpus/hash_mismatch/` | Directory | 182 B | File digest differs from `manifest.json` | 🟡 `HIGH` finding (`fail`) |
 
 ---
 
-## 2. Benchmark Results
+## 2. Threat Intelligence & Taxonomy Alignment
+
+All scanner findings are enriched with industry-standard taxonomy identifiers for SIEM/SOC and compliance automation:
+- **MITRE ATLAS**:
+  - `AML.T0010`: ML Supply Chain Compromise (backdoored model weights, rogue callables)
+  - `AML.T0011.000`: Evasion via Serialization Manipulation (corrupted headers, hidden offsets)
+  - `AML.T0048`: Adversarial Data Poisoning (dataset scripts, manifest mismatches)
+- **CWE (Common Weakness Enumeration)**:
+  - `CWE-502`: Deserialization of Untrusted Data (arbitrary opcode execution in pickles)
+  - `CWE-78`: OS Command Injection (`system`, `popen`, `exec` invocation)
+  - `CWE-22`: Improper Limitation of a Pathname to a Restricted Directory (external tensor directory traversal)
+  - `CWE-94`: Improper Control of Generation of Code (code injection in chat templates)
+  - `CWE-125`: Out-of-bounds Read (tensor byte offsets past file end)
+- **MITRE ATT&CK Enterprise**:
+  - `T1059.006`: Command and Scripting Interpreter: Python
+  - `T1041`: Exfiltration Over C2 Channel
+  - `T1070.004`: File Deletion / Defense Evasion
+
+---
+
+## 3. Benchmark Results
 
 ### Detection Rate on Known Malicious Patterns
 - **Pickle Opcode Scanning**: **100% detection (3/3)** on tested synthetic samples (`evil.bin`, `pytorch_evil.pt`, and Protocol 4 `STACK_GLOBAL` builtins import).
 - **Safetensors Boundary Verification**: **100% rejection (3/3)** on invalid offsets, header truncation, and 10GB header DoS attack.
+- **GGUF Structure & Template Verification**: **100% detection (2/2)** on valid headers vs. dangerous template injection payloads.
+- **ONNX External Tensor Verification**: **100% detection (2/2)** on valid graphs vs. path traversal `../../` arbitrary file access.
 - **Dataset Guard**: **100% detection (4/4)** on unexpected scripts (`.py`), manifest hash mismatches, corrupted JSONL lines, and spoofed Parquet headers.
 
 ### False-Positive Rate on Benign Samples
 - **Clean Pickle (`clean.pkl`)**: 0 findings above informational.
 - **Clean PyTorch Checkpoint (`pytorch_clean.pt`)**: 0 findings above informational.
 - **Valid Safetensors (`valid.safetensors`)**: 1 informational finding confirming valid non-executable structure.
+- **Clean GGUF (`clean.gguf`)**: 0 findings above informational.
+- **Clean ONNX (`clean.onnx`)**: 0 findings above informational.
 - **Target Goal**: Under 1.0% false positives on standard Hugging Face top-100 open checkpoints (labeled as a performance target, not a verified production claim across all unmeasured models).
 
 ### Latency & Performance Measurements
 - **Synthetic Corpus Scan Time**: Average `< 15ms` per file (static opcode analysis and streaming SHA-256).
-- **Test Suite Execution Time**: **19 unit and red-team tests completed in 0.18 seconds** via `pytest`.
+- **Test Suite Execution Time**: **24 unit and red-team tests completed in 0.32 seconds** via `pytest`.
 - **Target Goal**: `< 2 minutes` scan time on multi-gigabyte checkpoints running inside no-egress Cloud Run sandboxes.
 
 ---
