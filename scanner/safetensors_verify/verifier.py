@@ -107,7 +107,21 @@ class SafetensorsVerifier:
                 })
                 return "fail", findings
 
-        # Verify tensor definitions
+        return self.verify_header(header_json, header_len, file_size, file_path.name, sha256)
+
+    def verify_header(
+        self,
+        header_json: dict,
+        header_len: int,
+        file_size: int,
+        file_name: str,
+        sha256: str
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """
+        Verifies a parsed Safetensors header against file size and tensor specification.
+        Usable for both local files and remote HTTP Range-streamed headers.
+        """
+        findings = []
         buffer_start = 8 + header_len
         available_buffer = file_size - buffer_start
         tensors_checked = 0

@@ -36,11 +36,9 @@ class GGUFVerifier:
     TYPE_FLOAT64 = 12
 
     def verify_file(self, file_path: Path, sha256: str) -> Tuple[str, List[Dict[str, Any]]]:
-        findings = []
         file_size = file_path.stat().st_size
-
         if file_size < 24:
-            findings.append({
+            return "fail", [{
                 "finding_id": "f_gguf_truncated",
                 "check": "gguf_verify",
                 "category": "serialization",
@@ -50,98 +48,117 @@ class GGUFVerifier:
                 "title": "Truncated GGUF file: file size less than minimum header size",
                 "evidence": {"file": file_path.name, "size": file_size, "sha256": sha256},
                 "recommendation": "File is incomplete or corrupted."
-            })
-            return "fail", findings
+            }]
+
+        with open(file_path, "rb") as f:
+            return self.verify_stream(f, file_path.name, file_size, sha256)
+
+    def verify_stream(self, stream, file_name: str, file_size: int, sha256: str) -> Tuple[str, List[Dict[str, Any]]]:
+        findings = []
+
+        if file_size < 24:
+            return "fail", [{
+                "finding_id": "f_gguf_truncated",
+                "check": "gguf_verify",
+                "category": "serialization",
+                "severity": "critical",
+                "confidence": "high",
+                "deterministic": True,
+                "title": "Truncated GGUF file: file size less than minimum header size",
+                "evidence": {"file": file_name, "size": file_size, "sha256": sha256},
+                "recommendation": "File is incomplete or corrupted."
+            }]
+
+        version = 0
+        tensor_count = 0
+        metadata_kv_count = 0
 
         try:
-            with open(file_path, "rb") as f:
-                magic = f.read(4)
-                if magic != self.GGUF_MAGIC:
-                    findings.append({
-                        "finding_id": "f_gguf_bad_magic",
-                        "check": "gguf_verify",
-                        "category": "serialization",
-                        "severity": "critical",
-                        "confidence": "high",
-                        "deterministic": True,
-                        "title": f"Invalid GGUF magic bytes: {magic.hex()}",
-                        "evidence": {"magic": magic.hex(), "file": file_path.name},
-                        "recommendation": "File is not a valid GGUF binary."
-                    })
-                    return "fail", findings
+            f = stream
+            magic = f.read(4)
+            if magic != self.GGUF_MAGIC:
+                return "fail", [{
+                    "finding_id": "f_gguf_bad_magic",
+                    "check": "gguf_verify",
+                    "category": "serialization",
+                    "severity": "critical",
+                    "confidence": "high",
+                    "deterministic": True,
+                    "title": f"Invalid GGUF magic bytes: {magic.hex()}",
+                    "evidence": {"magic": magic.hex(), "file": file_name},
+                    "recommendation": "File is not a valid GGUF binary."
+                }]
 
-                version = struct.unpack("<I", f.read(4))[0]
-                if version not in (1, 2, 3):
-                    findings.append({
-                        "finding_id": "f_gguf_unsupported_version",
-                        "check": "gguf_verify",
-                        "category": "serialization",
-                        "severity": "high",
-                        "confidence": "high",
-                        "deterministic": True,
-                        "title": f"Unsupported or anomalous GGUF version: {version}",
-                        "evidence": {"version": version, "file": file_path.name},
-                        "recommendation": "GGUF specification currently supports versions 1, 2, and 3."
-                    })
+            version = struct.unpack("<I", f.read(4))[0]
+            if version not in (1, 2, 3):
+                findings.append({
+                    "finding_id": "f_gguf_unsupported_version",
+                    "check": "gguf_verify",
+                    "category": "serialization",
+                    "severity": "high",
+                    "confidence": "high",
+                    "deterministic": True,
+                    "title": f"Unsupported or anomalous GGUF version: {version}",
+                    "evidence": {"version": version, "file": file_name},
+                    "recommendation": "GGUF specification currently supports versions 1, 2, and 3."
+                })
 
-                tensor_count = struct.unpack("<Q", f.read(8))[0]
-                metadata_kv_count = struct.unpack("<Q", f.read(8))[0]
+            tensor_count = struct.unpack("<Q", f.read(8))[0]
+            metadata_kv_count = struct.unpack("<Q", f.read(8))[0]
 
-                # Check DoS limit on metadata keys
-                if metadata_kv_count > self.MAX_METADATA_KV:
-                    findings.append({
-                        "finding_id": "f_gguf_kv_dos",
-                        "check": "gguf_verify",
-                        "category": "serialization",
-                        "severity": "critical",
-                        "confidence": "high",
-                        "deterministic": True,
-                        "title": f"Excessive GGUF metadata key count ({metadata_kv_count} > {self.MAX_METADATA_KV})",
-                        "evidence": {"metadata_kv_count": metadata_kv_count, "file": file_path.name},
-                        "recommendation": "Potential DoS vector attempting memory exhaustion."
-                    })
-                    return "fail", findings
+            # Check DoS limit on metadata keys
+            if metadata_kv_count > self.MAX_METADATA_KV:
+                return "fail", [{
+                    "finding_id": "f_gguf_kv_dos",
+                    "check": "gguf_verify",
+                    "category": "serialization",
+                    "severity": "critical",
+                    "confidence": "high",
+                    "deterministic": True,
+                    "title": f"Excessive GGUF metadata key count ({metadata_kv_count} > {self.MAX_METADATA_KV})",
+                    "evidence": {"metadata_kv_count": metadata_kv_count, "file": file_name},
+                    "recommendation": "Potential DoS vector attempting memory exhaustion."
+                }]
 
-                # Parse a subset of metadata KV pairs safely
-                metadata = {}
-                for i in range(min(metadata_kv_count, 100)):
-                    k_len_bytes = f.read(8)
-                    if len(k_len_bytes) < 8:
-                        break
-                    k_len = struct.unpack("<Q", k_len_bytes)[0]
-                    if k_len > 1024:
-                        break
-                    key = f.read(k_len).decode("utf-8", errors="replace")
-                    val_type = struct.unpack("<I", f.read(4))[0]
+            # Parse a subset of metadata KV pairs safely
+            metadata = {}
+            for i in range(min(metadata_kv_count, 100)):
+                k_len_bytes = f.read(8)
+                if len(k_len_bytes) < 8:
+                    break
+                k_len = struct.unpack("<Q", k_len_bytes)[0]
+                if k_len > 1024:
+                    break
+                key = f.read(k_len).decode("utf-8", errors="replace")
+                val_type = struct.unpack("<I", f.read(4))[0]
 
-                    # Read string value if type is string
-                    if val_type == self.TYPE_STRING:
-                        s_len = struct.unpack("<Q", f.read(8))[0]
-                        if s_len <= self.MAX_STRING_BYTES:
-                            val_str = f.read(s_len).decode("utf-8", errors="replace")
-                            metadata[key] = val_str[:256]
-                            # Check for suspicious command sequences in template strings
-                            if any(cmd in val_str.lower() for cmd in ("os.system", "__import__", "/bin/sh", "cmd.exe")):
-                                findings.append({
-                                    "finding_id": f"f_gguf_suspicious_meta_{i}",
-                                    "check": "gguf_verify",
-                                    "category": "serialization",
-                                    "severity": "high",
-                                    "confidence": "high",
-                                    "deterministic": True,
-                                    "title": f"Suspicious executable or shell payload in GGUF metadata key '{key}'",
-                                    "evidence": {"key": key, "sample": val_str[:128]},
-                                    "recommendation": "Inspect tokenizer chat template or system prompt for prompt injection / code payload."
-                                })
-                    elif val_type in (self.TYPE_UINT32, self.TYPE_INT32, self.TYPE_FLOAT32):
-                        f.seek(4, 1)
-                    elif val_type in (self.TYPE_UINT64, self.TYPE_INT64, self.TYPE_FLOAT64):
-                        f.seek(8, 1)
-                    elif val_type == self.TYPE_BOOL:
-                        f.seek(1, 1)
-                    else:
-                        # Skip other scalar or complex types
-                        break
+                # Read string value if type is string
+                if val_type == self.TYPE_STRING:
+                    s_len = struct.unpack("<Q", f.read(8))[0]
+                    if s_len <= self.MAX_STRING_BYTES:
+                        val_str = f.read(s_len).decode("utf-8", errors="replace")
+                        metadata[key] = val_str[:256]
+                        # Check for suspicious command sequences in template strings
+                        if any(cmd in val_str.lower() for cmd in ("os.system", "__import__", "/bin/sh", "cmd.exe")):
+                            findings.append({
+                                "finding_id": f"f_gguf_suspicious_meta_{i}",
+                                "check": "gguf_verify",
+                                "category": "serialization",
+                                "severity": "high",
+                                "confidence": "high",
+                                "deterministic": True,
+                                "title": f"Suspicious executable or shell payload in GGUF metadata key '{key}'",
+                                "evidence": {"key": key, "sample": val_str[:128]},
+                                "recommendation": "Inspect tokenizer chat template or system prompt for prompt injection / code payload."
+                            })
+                elif val_type in (self.TYPE_UINT32, self.TYPE_INT32, self.TYPE_FLOAT32):
+                    f.seek(4, 1)
+                elif val_type in (self.TYPE_UINT64, self.TYPE_INT64, self.TYPE_FLOAT64):
+                    f.seek(8, 1)
+                elif val_type == self.TYPE_BOOL:
+                    f.seek(1, 1)
+                else:
+                    break
 
         except Exception as e:
             findings.append({
@@ -152,7 +169,7 @@ class GGUFVerifier:
                 "confidence": "high",
                 "deterministic": True,
                 "title": f"Error parsing GGUF metadata structure: {str(e)}",
-                "evidence": {"error": str(e), "file": file_path.name},
+                "evidence": {"error": str(e), "file": file_name},
                 "recommendation": "Check GGUF binary compliance."
             })
 

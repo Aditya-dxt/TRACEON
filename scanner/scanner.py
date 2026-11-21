@@ -22,6 +22,7 @@ from scanner.onnx_verify import ONNXVerifier
 from scanner.dataset_guard import DatasetGuard
 from scanner.weights import WeightAnalyzer
 from scanner.bom import generate_bom as bom_generator
+from scanner.remote.scanner import scan_remote_url, scan_hf_model
 from scanner.config import MAX_FILE_SIZE_BYTES
 
 ENGINE_VERSION = "0.1.0"

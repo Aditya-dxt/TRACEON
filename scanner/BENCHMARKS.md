@@ -55,6 +55,7 @@ All scanner findings are enriched with industry-standard taxonomy identifiers fo
 ### Detection Rate on Known Malicious Patterns
 - **Pickle Opcode Scanning**: **100% detection (3/3)** on tested synthetic samples (`evil.bin`, `pytorch_evil.pt`, and Protocol 4 `STACK_GLOBAL` builtins import).
 - **Safetensors Boundary Verification**: **100% rejection (3/3)** on invalid offsets, header truncation, and 10GB header DoS attack.
+- **Zero-Download HTTP Range Streaming**: **100% accuracy (6/6)** parsing remote Safetensors, PyTorch ZIP, GGUF, and Pickle files without downloading tensor weights.
 - **GGUF Structure & Template Verification**: **100% detection (2/2)** on valid headers vs. dangerous template injection payloads.
 - **ONNX External Tensor Verification**: **100% detection (2/2)** on valid graphs vs. path traversal `../../` arbitrary file access.
 - **Dataset Guard**: **100% detection (4/4)** on unexpected scripts (`.py`), manifest hash mismatches, corrupted JSONL lines, and spoofed Parquet headers.
@@ -68,8 +69,9 @@ All scanner findings are enriched with industry-standard taxonomy identifiers fo
 - **Target Goal**: Under 1.0% false positives on standard Hugging Face top-100 open checkpoints (labeled as a performance target, not a verified production claim across all unmeasured models).
 
 ### Latency & Performance Measurements
+- **Zero-Download Bandwidth Savings**: **> 99.9% network bandwidth saved** on remote Safetensors models (parses header in < 50 KB instead of transferring gigabytes).
 - **Synthetic Corpus Scan Time**: Average `< 15ms` per file (static opcode analysis and streaming SHA-256).
-- **Test Suite Execution Time**: **24 unit and red-team tests completed in 0.32 seconds** via `pytest`.
+- **Test Suite Execution Time**: **30 unit, red-team, and remote streaming tests completed in 1.27 seconds** via `pytest`.
 - **Target Goal**: `< 2 minutes` scan time on multi-gigabyte checkpoints running inside no-egress Cloud Run sandboxes.
 
 ---

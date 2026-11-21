@@ -33,11 +33,27 @@ class ONNXVerifier:
             })
             return "fail", findings
 
-        try:
-            # Read first 1MB of ONNX model to inspect graph definitions, metadata, and external locations
-            with open(file_path, "rb") as f:
-                header_data = f.read(min(file_size, 1024 * 1024))
+        with open(file_path, "rb") as f:
+            header_data = f.read(min(file_size, 1024 * 1024))
+        return self.verify_bytes(header_data, file_path.name, file_size, sha256)
 
+    def verify_bytes(self, header_data: bytes, file_name: str, file_size: int, sha256: str) -> Tuple[str, List[Dict[str, Any]]]:
+        findings = []
+        if file_size < 8:
+            findings.append({
+                "finding_id": "f_onnx_truncated",
+                "check": "onnx_verify",
+                "category": "serialization",
+                "severity": "critical",
+                "confidence": "high",
+                "deterministic": True,
+                "title": "Truncated ONNX model: file size less than 8 bytes",
+                "evidence": {"file": file_name, "size": file_size, "sha256": sha256},
+                "recommendation": "File is truncated or corrupted."
+            })
+            return "fail", findings
+
+        try:
             # 1. Search for external_data references and directory traversal
             # In ONNX tensors with external data, strings like 'location' are serialized
             # followed by the file path.
@@ -58,7 +74,7 @@ class ONNXVerifier:
                                 "pattern": indicator.decode("latin-1"),
                                 "cwe": "CWE-22 (Improper Limitation of a Pathname to a Restricted Directory)",
                                 "mitre_atlas": "AML.T0011.000 (Unsafe AI Artifacts)",
-                                "file": file_path.name,
+                                "file": file_name,
                                 "sha256": sha256
                             },
                             "recommendation": "Reject file: external data reference points outside the model directory."
@@ -79,7 +95,7 @@ class ONNXVerifier:
                         "title": f"Suspicious custom operator in ONNX graph: '{token.decode('latin-1')}'",
                         "evidence": {
                             "operator_token": token.decode("latin-1"),
-                            "file": file_path.name
+                            "file": file_name
                         },
                         "recommendation": "Inspect custom operator implementation to verify it does not execute host code."
                     })
@@ -93,7 +109,7 @@ class ONNXVerifier:
                 "confidence": "high",
                 "deterministic": True,
                 "title": f"Failed reading ONNX model: {str(e)}",
-                "evidence": {"error": str(e), "file": file_path.name},
+                "evidence": {"error": str(e), "file": file_name},
                 "recommendation": "Check ONNX file readability."
             })
 

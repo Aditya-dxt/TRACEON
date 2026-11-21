@@ -15,7 +15,7 @@ import json
 import argparse
 from pathlib import Path
 
-from scanner import scan_artifact, scan_dataset, generate_bom
+from scanner import scan_artifact, scan_dataset, generate_bom, scan_remote_url, scan_hf_model
 
 
 def main():
@@ -26,8 +26,11 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # Command: scan
-    scan_parser = subparsers.add_parser("scan", help="Scan a model artifact file")
-    scan_parser.add_argument("--file", required=True, help="Path to model file to scan")
+    scan_parser = subparsers.add_parser("scan", help="Scan a model artifact file or remote URL")
+    scan_parser.add_argument("--file", required=False, default=None, help="Path to local model file to scan")
+    scan_parser.add_argument("--url", required=False, default=None, help="Remote HTTP/HTTPS model URL to scan (zero-download range streaming)")
+    scan_parser.add_argument("--hf", required=False, default=None, help="Hugging Face repo and file (format: 'org/repo/filename.safetensors')")
+    scan_parser.add_argument("--token", required=False, default=None, help="Optional bearer token for private remote repositories")
     scan_parser.add_argument("--base-model", required=False, default=None, help="Optional path to base model for weight diffing")
 
     # Command: dataset
@@ -42,7 +45,26 @@ def main():
     args = parser.parse_args()
 
     if args.command == "scan":
-        result = scan_artifact(args.file, base_model_path=args.base_model)
+        if args.url:
+            result = scan_remote_url(args.url, auth_token=args.token)
+        elif args.hf:
+            # Parse 'org/repo/filename' or 'repo/filename'
+            parts = args.hf.strip("/").split("/")
+            if len(parts) >= 3:
+                repo_id = f"{parts[0]}/{parts[1]}"
+                filename = "/".join(parts[2:])
+            elif len(parts) == 2:
+                repo_id = parts[0]
+                filename = parts[1]
+            else:
+                print(json.dumps({"error": "Invalid --hf format. Use 'org/repo/filename.safetensors'", "code": "INVALID_HF_FORMAT"}, indent=2), file=sys.stderr)
+                sys.exit(1)
+            result = scan_hf_model(repo_id, filename, auth_token=args.token)
+        elif args.file:
+            result = scan_artifact(args.file, base_model_path=args.base_model)
+        else:
+            print(json.dumps({"error": "Must specify --file, --url, or --hf to scan", "code": "MISSING_SCAN_TARGET"}, indent=2), file=sys.stderr)
+            sys.exit(1)
         print(json.dumps(result, indent=2))
         sys.exit(0)
 
